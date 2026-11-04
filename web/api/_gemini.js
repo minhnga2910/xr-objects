@@ -155,7 +155,7 @@ export async function generate(opts) {
         const detail = (await res.text().catch(() => '')).slice(0, 400);
         const err = new Error(`Gemini ${res.status} (${model}): ${detail}`);
         err.status = res.status;
-        tried.push({ model, status: res.status });
+        tried.push({ model, status: res.status, detail: detail.replace(/\s+/g, ' ').slice(0, 220) });
         lastErr = err;
         // Retired model, bad request, quota or a transient upstream error: all of
         // these can be model-specific, so move on and let another model answer.
