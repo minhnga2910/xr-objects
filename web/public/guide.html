@@ -248,7 +248,7 @@ npx vercel --prod</code></pre>
     <tr>
       <td><code>objects</code></td>
       <td>label, category, confidence, bbox, source, metadata</td>
-      <td>Vật thể đã neo. <code>bbox</code> là toạ độ chuẩn hoá 0–1 nên đổi kích thước màn hình vẫn đúng. <code>source</code>: detector / longpress / circle.</td>
+      <td>Vật thể đã neo. <code>bbox</code> là toạ độ chuẩn hoá 0–1 nên đổi kích thước màn hình vẫn đúng. <code>source</code> ∈ gemini / demo / mediapipe (engine nhận diện); cách đăng ký (detector / longpress / circle) lưu trong <code>metadata.method</code>.</td>
     </tr>
     <tr>
       <td><code>notes</code></td>
@@ -268,7 +268,7 @@ npx vercel --prod</code></pre>
     <tr>
       <td><code>object_actions</code></td>
       <td>object_id, action, input, output, payload</td>
-      <td>Nhật ký mọi hành động (tham số model, độ trễ) — dùng để đo chất lượng prompt.</td>
+      <td>Nhật ký mọi hành động (tham số model, độ trễ) — dùng để đo chất lượng prompt. <code>action</code> ∈ info / ask / note / timer / stopwatch / save / compare.</td>
     </tr>
     <tr>
       <td><code>object_feed</code></td>

@@ -24,8 +24,9 @@ create table if not exists public.sessions (
 --   label      MediaPipe/COCO-ish class, e.g. "cup"
 --   category   coarse group, e.g. "drinkware"
 --   bbox       normalized { x, y, w, h } in 0..1 screen space
---   source     detector | longpress | circle  (manual registration modes)
---   metadata   Gemini label + extras, e.g. { name, description, thumbnail }
+--   source     gemini | demo | mediapipe  (which engine produced the detection)
+--   metadata   Gemini label + extras + the registration gesture, e.g.
+--              { name: "Arizona Iced Tea", method: "detector"|"longpress"|"circle" }
 create table if not exists public.objects (
   id          uuid primary key default gen_random_uuid(),
   session_id  uuid references public.sessions (id) on delete cascade,
@@ -33,7 +34,8 @@ create table if not exists public.objects (
   category    text,
   confidence  numeric,
   bbox        jsonb,
-  source      text default 'detector',
+  source      text default 'mediapipe'
+    check (source in ('gemini', 'demo', 'mediapipe')),
   metadata    jsonb,
   created_at  timestamptz not null default now()
 );
@@ -64,7 +66,7 @@ create table if not exists public.saved_items (
   id          uuid primary key default gen_random_uuid(),
   object_id   uuid references public.objects (id) on delete cascade,
   label       text,
-  list        text default 'default',
+  list        text default 'later' check (list in ('later', 'cart', 'reminder')),
   created_at  timestamptz not null default now()
 );
 
@@ -73,7 +75,8 @@ create table if not exists public.object_actions (
   id          uuid primary key default gen_random_uuid(),
   object_id   uuid references public.objects (id) on delete cascade,
   session_id  uuid references public.sessions (id) on delete cascade,
-  action      text not null,
+  action      text not null
+    check (action in ('info', 'ask', 'note', 'timer', 'stopwatch', 'save', 'compare')),
   input       text,
   output      text,
   payload     jsonb,

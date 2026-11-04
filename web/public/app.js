@@ -31,6 +31,9 @@ const state = {
 
 /* ------------------------------------------------------------------ helpers */
 const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+// objects.source is constrained to gemini | demo | mediapipe.
+// The registration gesture (long press / circle) lives in metadata.method.
+const sourceValue = () => (CFG.gemini ? 'gemini' : 'demo');
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `o-${Math.random().toString(36).slice(2)}`);
 
 function toast(message, kind = '') {
@@ -129,7 +132,7 @@ const SB = {
           confidence: obj.confidence ?? null,
           bbox: obj.bbox,
           source: obj.source,
-          metadata: obj.metadata || null
+          metadata: { ...(obj.metadata || {}), method: obj.method || 'detector' }
         }],
         prefer: 'return=representation'
       });
@@ -182,7 +185,7 @@ const SB = {
     if (!this.ready) return;
     await this.call('saved_items', {
       method: 'POST',
-      body: [{ object_id: objectDbId || null, label, list: 'default' }],
+      body: [{ object_id: objectDbId || null, label, list: 'later' }],
       prefer: 'return=minimal'
     }).catch(() => {});
   },
@@ -344,7 +347,8 @@ async function detectNow({ silent = false } = {}) {
         category: guessCategory(o.label),
         confidence: o.confidence,
         bbox: o.bbox,
-        source: 'detector',
+        source: sourceValue(),
+        method: 'detector',
         metadata: null,
         notes: [],
         actions: 0
@@ -385,9 +389,11 @@ async function enrichLabel(obj) {
     obj.metadata = { ...(obj.metadata || {}), name: data.label, model: data.model };
     obj.thumb = crop;
     render();
-    SB.updateObjectMetadata(obj.dbId, { name: data.label, class: obj.label });
+    SB.updateObjectMetadata(obj.dbId, { name: data.label, class: obj.label, method: obj.method });
   } catch {
-    /* label enrichment is best-effort */
+    // Label enrichment is best-effort: if Gemini is unreachable, mark the row as
+    // demo-sourced so it still satisfies objects_source_check.
+    if (obj.source === 'gemini') obj.source = 'demo';
   }
 }
 
@@ -416,7 +422,8 @@ function addManualObject(x, y, source) {
       w: size,
       h: size
     },
-    source,
+    source: sourceValue(),
+    method: source,
     metadata: null,
     notes: [],
     actions: 0
@@ -613,7 +620,7 @@ async function actionInfo(obj) {
   obj.actions += 1;
   const name = obj.metadata?.name || obj.label;
   $('#infoTitle').textContent = name;
-  $('#infoSub').textContent = `${obj.category} · ${obj.source === 'detector' ? 'nhận diện tự động' : 'đăng ký thủ công'}`;
+  $('#infoSub').textContent = `${obj.category} · ${obj.method === 'detector' ? 'nhận diện tự động' : obj.method === 'circle' ? 'đăng ký bằng khoanh tròn' : 'đăng ký bằng nhấn giữ'}`;
   $('#infoBody').innerHTML = '<div class="skeleton" style="width:92%"></div><div class="skeleton" style="width:78%"></div><div class="skeleton" style="width:64%"></div>';
   const thumb = obj.thumb || cropFrame(obj);
   $('#infoThumb').src = thumb || '';
@@ -792,7 +799,7 @@ function startTimer(obj, minutes) {
   const t = { objectId: obj.id, kind: 'countdown', endsAt: Date.now() + seconds * 1000, el: null };
   state.timers = state.timers.filter((x) => x.objectId !== obj.id).concat(t);
   SB.saveTimer(obj.dbId, 'countdown', seconds);
-  SB.logAction('countdown', `${minutes} phút`, null, { objectDbId: obj.dbId });
+  SB.logAction('timer', `${minutes} phút`, null, { objectDbId: obj.dbId });
   render();
   closeSheet('sheetTimer');
   toast(`Đã hẹn giờ ${minutes} phút`, 'ok');
@@ -868,7 +875,7 @@ async function openLog() {
           <div class="ic">${ICONS.pin}</div>
           <div class="txt">
             <b>${escapeHtml(r.label || 'object')}</b>
-            <span>${escapeHtml(r.category || 'object')} · ${escapeHtml(r.source || 'detector')}${r.action_count ? ` · ${r.action_count} hành động` : ''}</span>
+            <span>${escapeHtml(r.category || 'object')} · ${escapeHtml(r.source || 'gemini')}${r.action_count ? ` · ${r.action_count} hành động` : ''}</span>
           </div>
           <div class="t">${new Date(r.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
         </div>`).join('')}
@@ -903,7 +910,8 @@ function loadDemoObjects() {
         category: guessCategory(d.label),
         confidence: d.confidence,
         bbox: d.bbox,
-        source: 'detector',
+        source: 'demo',
+        method: 'detector',
         metadata: { name: DEMO_NAMES[d.label] || d.label },
         notes: [],
         actions: 0,
@@ -1027,7 +1035,8 @@ function setupGestures() {
             w: (maxX - minX) / rect.width,
             h: (maxY - minY) / rect.height
           },
-          source: 'circle',
+          source: sourceValue(),
+          method: 'circle',
           metadata: null,
           notes: [],
           actions: 0
