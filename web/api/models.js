@@ -59,7 +59,13 @@ export default async function handler(req, res) {
       };
       out.ok = true;
     } catch (err) {
-      out.test = { ok: false, error: String(err?.message || err).slice(0, 500) };
+      out.test = {
+        ok: false,
+        error: String(err?.message || err).slice(0, 300),
+        // which models were tried and how each failed (e.g. 429 on one model
+        // does not mean the key or quota is dead for every model)
+        tried: err?.tried || []
+      };
       out.ok = false;
     }
   }
