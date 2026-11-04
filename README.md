@@ -1,5 +1,14 @@
 # XR-Objects: Augmented Interaction for Analog Objects
 
+> ### 🌐 Live web demo
+> **https://xr-objects.vercel.app** — bản web mô phỏng pipeline camera → nhận diện → context menu AR → Gemini,
+> chạy trên Vercel với dữ liệu lưu ở Supabase. Hướng dẫn sử dụng (tiếng Việt): **https://xr-objects.vercel.app/guide**
+>
+> Mã nguồn bản web nằm trong thư mục [`web/`](web/README.md). Ứng dụng Android gốc bên dưới vẫn build bằng Unity như mô tả.
+> _Lưu ý: dự án Unity/ARCore không build hoặc host được trên Vercel — xem [hướng dẫn](web/public/guide.html) để hiểu rõ._
+
+
+
 XR-Objects is an implementation of Augmented Object Intelligence (AOI) as described in our [ACM UIST'24](https://uist.acm.org/2024/) paper: 
 
 <sub>Mustafa Doga Dogan, Eric J. Gonzalez, Karan Ahuja, Ruofei Du, Andrea Colaço, Johnny Lee, Mar Gonzalez-Franco, and David Kim. 2024. Augmented Object Intelligence with XR-Objects. In The 37th Annual ACM Symposium on User Interface Software and Technology (UIST ’24), October 13–16, 2024, Pittsburgh, PA, USA. ACM, New York, NY, USA, 15 pages. https://doi.org/10.1145/3654777.3676379 </sub>
