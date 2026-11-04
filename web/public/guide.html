@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hướng dẫn sử dụng — XR-Objects</title>
+<meta name="description" content="Cách dùng bản web XR-Objects, cách build app Unity/ARCore gốc cho Android, và cách tự triển khai lên Vercel + Supabase.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/guide.css">
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="mark">XO</div>
+  <b>XR-Objects</b>
+  <div class="links">
+    <a href="/guide.html">Hướng dẫn</a>
+    <a href="https://github.com/minhnga2910/xr-objects" target="_blank" rel="noopener">GitHub</a>
+    <a class="cta" href="/">Mở app demo</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<header class="hero">
+  <div class="eyebrow">Hướng dẫn sử dụng</div>
+  <h1>Dùng XR-Objects:<br>từ <em>chiếc cốc</em> đến menu ảo.</h1>
+  <p class="lede">
+    Tài liệu này gồm ba phần: dùng bản web demo trong 30 giây, hiểu vì sao repo gốc phải build bằng Unity
+    (không chạy trên Vercel được), và cách tự triển khai lại toàn bộ hệ thống với Vercel + Supabase.
+  </p>
+  <div class="hero-btns">
+    <a class="btn primary" href="/">▶ Mở app demo</a>
+    <a class="btn" href="#unity">Build bản Android gốc</a>
+    <a class="btn" href="#deploy">Tự deploy</a>
+  </div>
+
+  <div class="toc">
+    <a href="#web"><span>01</span> Dùng bản web demo</a>
+    <a href="#actions"><span>02</span> 6 hành động AR</a>
+    <a href="#unity"><span>03</span> Build app Unity gốc</a>
+    <a href="#deploy"><span>04</span> Deploy Vercel + Supabase</a>
+    <a href="#database"><span>05</span> Cấu trúc database</a>
+    <a href="#faq"><span>06</span> Câu hỏi thường gặp</a>
+  </div>
+</header>
+
+<div class="note">
+  <b>Tóm tắt nhanh:</b> repo <code>xr-objects</code> là một dự án <b>Unity</b> (C#, ARCore, MediaPipe) — kết quả build là
+  file <code>.apk</code> cài trên điện thoại Android, <b>không phải website</b>, nên Vercel không thể build hay host nó.
+  Vì vậy bản deploy trên Vercel là một <b>bản web mô phỏng cùng pipeline</b> (camera → nhận diện → context menu → Gemini),
+  còn app Android gốc vẫn build bằng Unity Hub theo hướng dẫn ở phần 03.
+</div>
+
+<!-- ============================================================ 01 -->
+<h2 id="web">01 · Dùng bản web demo</h2>
+
+<p>Bản web chạy ngay trong trình duyệt điện thoại, không cần cài đặt. Pipeline giống bản Unity: camera → phát hiện vật thể → neo → chạm để mở menu.</p>
+
+<ol class="steps">
+  <li>
+    <b>Mở app bằng Chrome hoặc Safari</b>
+    <p>Trên iPhone phải dùng <b>Safari</b> (iOS chỉ cho Safari truy cập camera). Trên Android dùng Chrome. Có thể "Thêm vào màn hình chính" để chạy như app.</p>
+  </li>
+  <li>
+    <b>Bấm “Bật camera” và cho phép quyền</b>
+    <p>Nếu bạn từ chối, hãy mở khoá quyền camera trong cài đặt trang web. Không muốn dùng camera? Bấm <b>Tải ảnh lên</b> và chọn một bức ảnh có vật thể.</p>
+  </li>
+  <li>
+    <b>Bấm “Nhận diện”</b>
+    <p>Hệ thống gửi một khung hình cho Gemini, nhận về danh sách vật thể kèm khung bao. Mỗi vật thể được neo ngay trên hình — viền xanh là vật thể do máy phát hiện.</p>
+  </li>
+  <li>
+    <b>Chạm vào một vật thể</b>
+    <p>Menu toả tròn 6 hành động hiện ra quanh vật thể đó, đúng mô hình "chuột phải" của XR-Objects. Chạm ra ngoài để đóng.</p>
+  </li>
+  <li>
+    <b>Dùng “Tự động” nếu muốn cập nhật liên tục</b>
+    <p>Bật <b>Tự động</b> để hệ thống quét lại mỗi 6 giây khi bạn di chuyển camera — gần giống chế độ chạy nền MediaPipe trong app gốc. Tắt đi khi đã đủ vật thể để tiết kiệm pin và quota API.</p>
+  </li>
+</ol>
+
+<h3>Đăng ký vật thể thủ công</h3>
+<p>Đôi khi detector bỏ sót vật thể. Hai chế độ lấy từ bản Unity (nút <code>(1)</code> và <code>(2)</code> trong app gốc):</p>
+<div class="grid2">
+  <div class="card">
+    <h3 style="margin-top:0">Nhấn giữ <span class="badge gray">long press</span></h3>
+    <p class="dim" style="margin:0;font-size:13.5px">Bật nút <b>Nhấn giữ</b>, rồi giữ ngón tay ~0,5 giây lên vật thể. Một khung nét đứt màu vàng sẽ được đặt tại đó và Gemini sẽ đặt tên cho vùng ảnh này.</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Khoanh tròn <span class="badge gray">circle</span></h3>
+    <p class="dim" style="margin:0;font-size:13.5px">Bật nút <b>Khoanh</b> rồi vẽ một vòng quanh vật thể. Hệ thống lấy hộp bao của nét vẽ và đăng ký vùng đó. Phù hợp với vật thể méo hoặc nằm cạnh vật khác.</p>
+  </div>
+</div>
+
+<!-- ============================================================ 02 -->
+<h2 id="actions">02 · Sáu hành động AR</h2>
+
+<table>
+  <thead>
+    <tr><th>Hành động</th><th>Làm gì</th><th>Bản gốc</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>Thông tin</b></td>
+      <td>2–3 câu tóm tắt về vật thể (thương hiệu, công dụng, thông số, giá) có Google Search để tra cứu thời gian thực.</td>
+      <td><code>ActionSearch.cs</code></td>
+    </tr>
+    <tr>
+      <td><b>Hỏi</b></td>
+      <td>Hội thoại nhiều lượt về đúng vật thể đang chọn. Có gợi ý câu hỏi nhanh; trả lời bằng tiếng Việt nếu bạn hỏi tiếng Việt.</td>
+      <td><code>ActionAsk.cs</code></td>
+    </tr>
+    <tr>
+      <td><b>So sánh</b></td>
+      <td>Chụp riêng từng vật thể (tối đa 4), gửi kèm nhãn và yêu cầu Gemini so sánh khác biệt chính trong ~30 từ.</td>
+      <td><code>ActionCompareMultiple.cs</code></td>
+    </tr>
+    <tr>
+      <td><b>Ghi chú</b></td>
+      <td>Ghi chú dán lên vật thể. Số ghi chú hiện thành huy hiệu trên khung bao; lưu vào bảng <code>notes</code>.</td>
+      <td><code>ActionAddNote.cs</code></td>
+    </tr>
+    <tr>
+      <td><b>Hẹn giờ</b></td>
+      <td>Đồng hồ đếm ngược neo ngay dưới vật thể (1 phút → 1 giờ), tiếp tục chạy khi đóng bảng.</td>
+      <td><code>ActionCountdown.cs</code> / <code>ActionTimer.cs</code></td>
+    </tr>
+    <tr>
+      <td><b>Lưu lại</b></td>
+      <td>Đánh dấu vật thể vào danh sách "để sau", ghi vào bảng <code>saved_items</code>.</td>
+      <td><code>ActionSaveForLater.cs</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p class="dim"><b>Nhật ký scene</b> (nút <b>Scene</b> ở thanh dưới) liệt kê các vật thể đã neo trong phiên — đọc trực tiếp từ view <code>object_feed</code> của Supabase.</p>
+
+<!-- ============================================================ 03 -->
+<h2 id="unity">03 · Build app Android gốc (Unity)</h2>
+
+<div class="warn">
+  Đây là phần <b>không thể làm trên Vercel</b>. Cần Unity Hub + Unity Editor (bản AR Foundation tương ứng) và Android SDK/NDK trên máy tính của bạn.
+</div>
+
+<ol class="steps">
+  <li>
+    <b>Clone repo và mở bằng Unity Hub</b>
+    <p><code>git clone https://github.com/minhnga2910/xr-objects</code> rồi mở thư mục <code>XRObjects/</code> trong Unity Hub (không phải <code>DemoHeadset/</code> nếu bạn muốn bản ARCore cho điện thoại).</p>
+  </li>
+  <li>
+    <b>Chuyển target platform sang Android</b>
+    <p>File → Build Settings → Android → Switch Platform. Kiểm tra Scripting Backend = <b>IL2CPP</b>, Minimum API Level = <b>Android 7.0 (API 24)</b>, Target Architectures = <b>ARMv7 + ARM64</b>.</p>
+  </li>
+  <li>
+    <b>Mở scene và đặt Gemini key</b>
+    <p>Mở <code>Assets/XRObjects/SceneXRObjects</code>, đảm bảo đây là scene duy nhất trong "Scenes In Build". Lấy key ở <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com/app/apikey</a>, rồi dán vào biến <code>apiKey</code> trong <code>Assets/XRObjects/Scripts/ImageQuery.cs</code>.</p>
+    <p class="dim" style="margin-top:8px;font-size:13px">Lưu ý bảo mật: key nằm ngay trong APK. Chỉ dùng cho thử nghiệm cá nhân, đừng phát hành công khai.</p>
+  </li>
+  <li>
+    <b>Build APK và cài lên máy</b>
+    <p>Build &amp; Run, hoặc xuất APK rồi <code>adb install -r -d -g duong_dan.apk</code>. Cấp quyền camera, vị trí và bật WiFi.</p>
+  </li>
+  <li>
+    <b>Thao tác trong app</b>
+    <p>Bấm nút <b>(1)</b> để bắt đầu nhận diện (MediaPipe Object Detector chạy trên máy), rồi chạm vào vật thể để mở context menu. Bấm <b>(2)</b> để tắt detector khi đã nhận đủ vật thể — app sẽ mượt hơn mà vẫn tương tác được với các vật thể đã neo.</p>
+  </li>
+</ol>
+
+<p class="dim">Nếu gặp lỗi <code>Multiple precompiled assemblies with the same name Google.Protobuf.dll</code>, xoá một trong hai file, ví dụ bản trong <code>/Editor/Scripts/Internal/Analytics</code>. Chi tiết đầy đủ nằm trong README của repo.</p>
+
+<!-- ============================================================ 04 -->
+<h2 id="deploy">04 · Tự deploy lên Vercel + Supabase</h2>
+
+<p>Toàn bộ mã nguồn bản web nằm trong thư mục <code>web/</code> của repo này. Không cần bước build — thư mục <code>web/public</code> được host tĩnh, còn <code>web/api/*.js</code> chạy dạng serverless function giữ kín API key.</p>
+
+<h3>Cấu trúc thư mục</h3>
+<pre><code>web/
+├── vercel.json          <span class="c"># cấu hình host tĩnh + functions</span>
+├── public/              <span class="c"># index.html, app.js, styles.css, guide.html</span>
+├── api/
+│   ├── _gemini.js       <span class="c"># helper gọi Gemini (không phải route)</span>
+│   ├── config.js        <span class="c"># trả URL + publishable key của Supabase</span>
+│   ├── detect.js        <span class="c"># ảnh → danh sách vật thể + bbox</span>
+│   ├── label.js         <span class="c"># đặt tên thương hiệu cho vật thể</span>
+│   ├── describe.js      <span class="c"># tóm tắt thông tin</span>
+│   ├── ask.js           <span class="c"># hỏi đáp nhiều lượt</span>
+│   └── compare.js       <span class="c"># so sánh nhiều vật thể</span>
+└── supabase/schema.sql  <span class="c"># tạo bảng + RLS</span></code></pre>
+
+<h3>Biến môi trường</h3>
+<table>
+  <thead><tr><th>Biến</th><th>Bắt buộc</th><th>Dùng để</th></tr></thead>
+  <tbody>
+    <tr><td><code>GEMINI_API_KEY</code></td><td><span class="badge">nên có</span></td><td>Nhận diện, đặt tên, hỏi đáp. Không có → app tự chuyển chế độ demo với dữ liệu mẫu.</td></tr>
+    <tr><td><code>SUPABASE_URL</code></td><td><span class="badge">nên có</span></td><td>Ví dụ <code>https://abcdefgh.supabase.co</code></td></tr>
+    <tr><td><code>SUPABASE_ANON_KEY</code></td><td><span class="badge">nên có</span></td><td>Publishable/anon key — an toàn để lộ ra trình duyệt vì đã có RLS.</td></tr>
+    <tr><td><code>GEMINI_MODEL</code></td><td><span class="badge gray">tuỳ chọn</span></td><td>Mặc định <code>gemini-2.0-flash</code>.</td></tr>
+  </tbody>
+</table>
+
+<h3>Deploy bằng Vercel CLI</h3>
+<pre><code><span class="c"># trong thư mục gốc repo</span>
+cd web
+npx vercel link          <span class="c"># chọn team minhnga2910</span>
+npx vercel env add GEMINI_API_KEY production
+npx vercel env add SUPABASE_URL production
+npx vercel env add SUPABASE_ANON_KEY production
+npx vercel --prod</code></pre>
+
+<p>Vào <b>Vercel → Project → Settings → Root Directory</b> và đặt thành <code>web</code> nếu bạn deploy từ GitHub. Framework preset: <b>Other</b>, Build Command: để trống, Output Directory: <code>public</code> (đã khai báo sẵn trong <code>vercel.json</code>).</p>
+
+<h3>Hoặc deploy qua GitHub</h3>
+<ol>
+  <li>Push repo lên GitHub.</li>
+  <li>Vercel → <b>Add New → Project</b> → chọn <code>xr-objects</code>.</li>
+  <li>Root Directory = <code>web</code>, Framework = <b>Other</b>.</li>
+  <li>Thêm 3 biến môi trường ở trên → <b>Deploy</b>.</li>
+</ol>
+
+<h3>Tạo database Supabase</h3>
+<ol>
+  <li>Tạo project mới trên <a href="https://supabase.com/dashboard" target="_blank" rel="noopener">supabase.com</a> (region <code>Southeast Asia (Singapore)</code> cho người dùng Việt Nam).</li>
+  <li>Mở <b>SQL Editor</b>, dán nội dung <code>web/supabase/schema.sql</code> và chạy.</li>
+  <li>Vào <b>Project Settings → API</b>, copy <code>Project URL</code> và <code>anon public key</code>, dán vào 2 biến môi trường của Vercel.</li>
+  <li>Redeploy. Trong app, mở <b>Cài đặt</b> — dòng Supabase phải hiện "Đã kết nối".</li>
+</ol>
+
+<div class="warn">
+  Policy trong schema đang mở hoàn toàn (<code>using (true)</code>) để bản demo dùng được ngay mà không cần đăng nhập.
+  Nếu triển khai cho người dùng thật, hãy thêm Supabase Auth và đổi policy thành <code>auth.uid() = owner_id</code>,
+  đồng thời thêm cột <code>owner_id</code>. Đừng lưu dữ liệu nhạy cảm với policy mở.
+</div>
+
+<!-- ============================================================ 05 -->
+<h2 id="database">05 · Cấu trúc database</h2>
+
+<p>Bản web ghi lại đúng những gì app Unity giữ trong scene, để sau này có thể đồng bộ giữa hai bên:</p>
+
+<table>
+  <thead><tr><th>Bảng</th><th>Cột chính</th><th>Ý nghĩa</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>sessions</code></td>
+      <td>device, user_agent</td>
+      <td>Mỗi lần mở app là một phiên; dùng để nhóm vật thể.</td>
+    </tr>
+    <tr>
+      <td><code>objects</code></td>
+      <td>label, category, confidence, bbox, source, metadata</td>
+      <td>Vật thể đã neo. <code>bbox</code> là toạ độ chuẩn hoá 0–1 nên đổi kích thước màn hình vẫn đúng. <code>source</code>: detector / longpress / circle.</td>
+    </tr>
+    <tr>
+      <td><code>notes</code></td>
+      <td>object_id, body, anchor</td>
+      <td>Ghi chú không gian dán lên vật thể.</td>
+    </tr>
+    <tr>
+      <td><code>timers</code></td>
+      <td>object_id, kind, duration_seconds, started_at</td>
+      <td>Hẹn giờ / bấm giờ bắt đầu từ context menu.</td>
+    </tr>
+    <tr>
+      <td><code>saved_items</code></td>
+      <td>object_id, label, list</td>
+      <td>Danh sách "lưu để sau".</td>
+    </tr>
+    <tr>
+      <td><code>object_actions</code></td>
+      <td>object_id, action, input, output, payload</td>
+      <td>Nhật ký mọi hành động (tham số model, độ trễ) — dùng để đo chất lượng prompt.</td>
+    </tr>
+    <tr>
+      <td><code>object_feed</code></td>
+      <td>view</td>
+      <td>View tổng hợp cho panel "Nhật ký scene".</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Ví dụ truy vấn</h3>
+<pre><code><span class="c">-- Vật thể nào được tương tác nhiều nhất?</span>
+<span class="k">select</span> o.label, o.category, count(a.id) <span class="k">as</span> actions
+<span class="k">from</span> objects o
+<span class="k">join</span> object_actions a <span class="k">on</span> a.object_id = o.id
+<span class="k">group by</span> o.label, o.category
+<span class="k">order by</span> actions <span class="k">desc</span>
+<span class="k">limit</span> 10;
+
+<span class="c">-- Độ trễ trung bình của Gemini theo từng loại hành động</span>
+<span class="k">select</span> action,
+       round(avg((payload->>'latencyMs')::numeric)) <span class="k">as</span> ms
+<span class="k">from</span> object_actions
+<span class="k">where</span> payload ? 'latencyMs'
+<span class="k">group by</span> action;</code></pre>
+
+<!-- ============================================================ 06 -->
+<h2 id="faq">06 · Câu hỏi thường gặp</h2>
+
+<h3>Vì sao không deploy thẳng repo này lên Vercel?</h3>
+<p>Vì repo chứa dự án Unity (C#) kèm thư viện native ARCore/MediaPipe và model <code>.tflite</code>. Sản phẩm của Unity là file APK/AAB chạy trên Android — một hệ điều hành, không phải môi trường serverless. Ngoài ra repo rất nặng (~790 MB) với thư viện nhị phân, không phù hợp giới hạn build của Vercel. Bản web trong <code>web/</code> tái hiện đúng luồng tương tác để bạn trải nghiệm và để dùng làm landing page cho dự án.</p>
+
+<h3>Bản web có dùng AR thật không?</h3>
+<p>Không. Trình duyệt không có plane tracking/depth như ARCore. Bản web mô phỏng phần <b>tương tác</b>: vật thể được neo trong không gian ảnh (normalized bbox) và menu toả tròn quanh vật thể. Muốn AR thật (bám vào bàn, đi vòng quanh vật thể) thì dùng bản Unity trên máy Android.</p>
+
+<h3>Camera không mở / báo lỗi quyền</h3>
+<ul>
+  <li>Trang phải chạy trên <b>HTTPS</b> (Vercel mặc định có) — <code>http://</code> sẽ bị chặn camera.</li>
+  <li>iOS: chỉ Safari hỗ trợ <code>getUserMedia</code>; Chrome trên iOS không mở được camera.</li>
+  <li>Kiểm tra icon 🔒 trên thanh địa chỉ → quyền Camera → Allow, rồi tải lại trang.</li>
+  <li>Vẫn không được: dùng nút <b>Tải ảnh lên</b> để thử toàn bộ luồng tương tác.</li>
+</ul>
+
+<h3>Chưa có Gemini API key thì sao?</h3>
+<p>App vẫn chạy: nó tự chuyển <b>chế độ demo</b> với 4 vật thể mẫu và nội dung mẫu, để bạn xem được toàn bộ UI và luồng menu. Thêm <code>GEMINI_API_KEY</code> vào Vercel rồi redeploy là AI hoạt động thật.</p>
+
+<h3>Tốn phí bao nhiêu?</h3>
+<p>Gemini 2.0 Flash có hạn mức miễn phí hằng ngày; mỗi lần nhận diện = 1 request kèm 1 ảnh JPEG ~720px. Bật <b>Tự động</b> sẽ gọi API mỗi 6 giây nên hãy tắt khi không cần. Supabase và Vercel đều có gói free đủ dùng cho demo.</p>
+
+<h3>Có dùng được trên desktop không?</h3>
+<p>Được — mở bằng Chrome trên máy tính, giao diện sẽ đặt khung điện thoại bên trái và phần giới thiệu bên phải. Webcam máy tính hoạt động bình thường.</p>
+
+<footer>
+  XR-Objects — Augmented Object Intelligence · nghiên cứu của Google Research tại ACM UIST 2024, giấy phép MIT.<br>
+  Dựa trên <a href="https://github.com/minhnga2910/xr-objects" target="_blank" rel="noopener">minhnga2910/xr-objects</a>.
+  Bản web triển khai trên Vercel, dữ liệu trên Supabase.
+</footer>
+
+</div>
+</body>
+</html>

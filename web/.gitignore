@@ -1,0 +1,8 @@
+# web demo
+web/node_modules/
+web/.vercel/
+web/.env.local
+web/.env
+.env.local
+.DS_Store
+*.log
