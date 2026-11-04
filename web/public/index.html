@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#06070b">
+<title>XR-Objects — Augmented Object Intelligence</title>
+<meta name="description" content="Bản web của XR-Objects: nhận diện vật thể thật bằng camera, neo context menu AR và hỏi AI về chúng. Dựa trên nghiên cứu ACM UIST'24 của Google.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta property="og:title" content="XR-Objects — Augmented Object Intelligence">
+<meta property="og:description" content="Camera → nhận diện vật thể → context menu AR → hỏi AI. Bản web demo của XR-Objects (UIST'24).">
+<meta property="og:type" content="website">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div id="app">
+  <!-- ============================================================ app column -->
+  <div class="app-col">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">XO</div>
+        <div class="brand-text">
+          <b>XR-Objects</b>
+          <span>Augmented Object Intelligence</span>
+        </div>
+      </div>
+      <div class="spacer"></div>
+      <div class="status-pill" id="statusPill">
+        <span class="dot"></span>
+        <span id="statusText">Đang khởi động</span>
+      </div>
+      <button class="icon-btn" id="btnSettings" title="Cài đặt" aria-label="Cài đặt">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg>
+      </button>
+    </header>
+
+    <main class="stage" id="stage">
+      <video id="video" playsinline autoplay muted class="hidden"></video>
+
+      <div class="stage-bg" id="stageBg">
+        <div class="empty-state">
+          <div class="glyph">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.9l1.3-2h6.6l1.3 2h1.9A2.5 2.5 0 0 1 21 8.5v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5Z"/><circle cx="12" cy="13" r="3.6"/></svg>
+          </div>
+          <h2>Đưa camera vào vật thể thật</h2>
+          <p>Bật camera, nhấn <b>Nhận diện</b> để hệ thống neo vật thể, rồi chạm vào vật thể để mở context menu AR — đúng cách XR-Objects hoạt động trên điện thoại Android.</p>
+          <div class="row">
+            <button class="btn primary" id="btnStartCam">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.9l1.3-2h6.6l1.3 2h1.9A2.5 2.5 0 0 1 21 8.5v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5Z"/><circle cx="12" cy="13" r="3.6"/></svg>
+              Bật camera
+            </button>
+            <button class="btn" id="btnStartUpload">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4 7.5 8.5M12 4l4.5 4.5"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/></svg>
+              Tải ảnh lên
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="overlay" id="overlay"></div>
+      <canvas id="circleCanvas"></canvas>
+      <div class="scanning" id="scanFx" style="display:none"></div>
+
+      <div class="gesture-hint" id="demoBanner" style="display:none">
+        Chế độ demo — chưa có GEMINI_API_KEY
+      </div>
+    </main>
+
+    <nav class="dock" aria-label="Điều khiển">
+      <button class="dock-btn" id="btnCamera" aria-label="Bật/tắt camera">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.9l1.3-2h6.6l1.3 2h1.9A2.5 2.5 0 0 1 21 8.5v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5Z"/><circle cx="12" cy="13" r="3.6"/></svg>
+        <span>Camera</span>
+      </button>
+      <button class="dock-btn" id="btnDetect" aria-label="Nhận diện vật thể">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5A1.5 1.5 0 0 1 18.5 20H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="M4 12h16"/></svg>
+        <span>Nhận diện</span>
+      </button>
+      <button class="dock-btn" id="btnAuto" aria-label="Tự động nhận diện" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v4h-4"/></svg>
+        <span>Tự động</span>
+      </button>
+      <div class="dock-sep"></div>
+      <button class="dock-btn" id="btnLongPress" aria-label="Đăng ký bằng nhấn giữ">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11V6.5a1.5 1.5 0 0 1 3 0V11"/><path d="M12 11V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M15 11V7.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1.2a5 5 0 0 1-3.9-1.9L5 15.4a1.6 1.6 0 0 1 .4-2.3 1.6 1.6 0 0 1 2.1.3L9 15"/></svg>
+        <span>Nhấn giữ</span>
+      </button>
+      <button class="dock-btn" id="btnCircle" aria-label="Đăng ký bằng khoanh tròn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 7.5a7 7 0 1 0 0 9" stroke-dasharray="2 2.6"/><circle cx="18" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg>
+        <span>Khoanh</span>
+      </button>
+      <div class="dock-sep"></div>
+      <button class="dock-btn" id="btnLog" aria-label="Nhật ký scene">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+        <span>Scene</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- ========================================================= desktop guide -->
+  <aside class="desk on">
+    <div class="meta-row" id="deskStats"></div>
+    <h1 style="margin:18px 0 10px;font-size:30px;letter-spacing:-.9px;line-height:1.15">
+      Vật thể thật,<br>menu ảo.
+    </h1>
+    <p class="prose" style="color:var(--muted);max-width:56ch">
+      XR-Objects biến mọi đồ vật quanh bạn thành một đối tượng có thể “chuột phải”. Đưa camera vào chiếc cốc,
+      hộp trà hay cái laptop — hệ thống nhận diện, đặt tên bằng Gemini, neo một context menu toả tròn quanh vật thể,
+      rồi cho bạn hỏi, ghi chú, hẹn giờ, so sánh ngay trên đồ vật đó.
+    </p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:22px 0 26px;max-width:620px">
+      <div class="list-row" style="border:1px solid var(--stroke-soft);border-radius:12px;padding:12px">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/></svg></div>
+        <div class="txt"><b>Thông tin</b><span>2–3 câu, có Google Search</span></div>
+      </div>
+      <div class="list-row" style="border:1px solid var(--stroke-soft);border-radius:12px;padding:12px">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4L3.5 21l1.2-4.4A8.4 8.4 0 1 1 21 11.5Z"/></svg></div>
+        <div class="txt"><b>Hỏi đáp</b><span>hội thoại theo từng vật thể</span></div>
+      </div>
+      <div class="list-row" style="border:1px solid var(--stroke-soft);border-radius:12px;padding:12px">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h10M4 7l3-3M4 7l3 3"/><path d="M20 17H10M20 17l-3-3M20 17l-3 3"/></svg></div>
+        <div class="txt"><b>So sánh</b><span>tối đa 4 vật thể một lúc</span></div>
+      </div>
+      <div class="list-row" style="border:1px solid var(--stroke-soft);border-radius:12px;padding:12px">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 10v3.8l2.4 1.6"/></svg></div>
+        <div class="txt"><b>Ghi chú &amp; hẹn giờ</b><span>neo lên vật thể, lưu Supabase</span></div>
+      </div>
+    </div>
+
+    <div class="list" style="max-width:620px">
+      <div class="list-row"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l3 7 4-14 3 7h4"/></svg></div><div class="txt"><b>Gemini</b><span id="modelTag">—</span></div></div>
+      <div class="list-row"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></div><div class="txt"><b>Supabase</b><span>objects · notes · timers · saved_items</span></div></div>
+    </div>
+
+    <p style="margin:26px 0 0;font-size:12px;color:var(--dim);max-width:56ch">
+      Dựa trên XR-Objects của Google Research (ACM UIST 2024). Bản web này là bản mô phỏng pipeline
+      camera → detector → Gemini → context menu; bản gốc chạy Unity + ARCore trên Android.
+      <a href="/guide.html" style="color:var(--mint);text-decoration:none">Xem hướng dẫn sử dụng →</a>
+    </p>
+  </aside>
+</div>
+
+<!-- ================================================================= sheets -->
+<div class="sheet-wrap" id="sheetInfo" aria-hidden="true">
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <span class="grab"></span>
+      <div>
+        <h3 id="infoTitle">Thông tin</h3>
+        <p class="sub" id="infoSub"></p>
+      </div>
+      <button class="icon-btn close-x" onclick="document.getElementById('sheetInfo').classList.remove('open')" aria-label="Đóng">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <img class="thumb" id="infoThumb" alt="Ảnh vật thể" style="display:none">
+      <div id="infoBody"></div>
+    </div>
+    <div class="sheet-foot">
+      <button class="btn primary wide" onclick="document.getElementById('sheetInfo').classList.remove('open');document.getElementById('sheetAsk').classList.add('open')">
+        Hỏi thêm về vật thể này
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-wrap" id="sheetAsk" aria-hidden="true">
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <span class="grab"></span>
+      <div>
+        <h3 id="askTitle">Hỏi</h3>
+        <p class="sub" id="askSub">Hỏi bất cứ điều gì</p>
+      </div>
+      <button class="icon-btn close-x" onclick="document.getElementById('sheetAsk').classList.remove('open')" aria-label="Đóng">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <div class="pill-row" style="margin-bottom:14px">
+        <button class="pill" data-q="Cái này dùng để làm gì?">Dùng để làm gì?</button>
+        <button class="pill" data-q="Giá thị trường hiện tại khoảng bao nhiêu?">Giá bao nhiêu?</button>
+        <button class="pill" data-q="Có lưu ý gì khi sử dụng hoặc bảo quản không?">Lưu ý sử dụng</button>
+        <button class="pill" data-q="Thành phần / thông số chính là gì?">Thông số chính</button>
+      </div>
+      <div class="chat" id="askChat"></div>
+    </div>
+    <div class="sheet-foot">
+      <div class="ask-row" style="width:100%">
+        <input class="field" id="askInput" placeholder="Nhập câu hỏi…" autocomplete="off" enterkeyhint="send">
+        <button class="btn primary" id="askSend" aria-label="Gửi">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12 21 4l-7 17-3-7Z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-wrap" id="sheetCompare" aria-hidden="true">
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <span class="grab"></span>
+      <div>
+        <h3 id="compareTitle">So sánh</h3>
+        <p class="sub" id="compareSub"></p>
+      </div>
+      <button class="icon-btn close-x" onclick="document.getElementById('sheetCompare').classList.remove('open')" aria-label="Đóng">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <div id="compareThumbs" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"></div>
+      <div id="compareBody"></div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-wrap" id="sheetNote" aria-hidden="true">
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <span class="grab"></span>
+      <div>
+        <h3 id="noteTitle">Ghi chú</h3>
+        <p class="sub" id="noteSub"></p>
+      </div>
+      <button class="icon-btn close-x" onclick="document.getElementById('sheetNote').classList.remove('open')" aria-label="Đóng">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <textarea class="field" id="noteInput" placeholder="Ví dụ: hộp trà này của chị Lan, uống trước tháng 6…"></textarea>
+      <div style="height:10px"></div>
+      <div class="list" id="noteList"></div>
+    </div>
+    <div class="sheet-foot">
+      <button class="btn primary wide" id="noteSubmit">Thêm ghi chú</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-wrap" id="sheetTimer" aria-hidden="true">
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <span class="grab"></span>
+      <div>
+        <h3 id="timerTitle">Hẹn giờ</h3>
+        <p class="sub" id="timerSub"></p>
+      </div>
+      <button class="icon-btn close-x" onclick="document.getElementById('sheetTimer').classList.remove('open')" aria-label="Đóng">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <div class="pill-row">
+        <button class="pill data-min" data-min="1">1 phút</button>
+        <button class="pill" data-min="3">3 phút</button>
+        <button class="pill" data-min="5">5 phút</button>
+        <button class="pill" data-min="10">10 phút</button>
+        <button class="pill" data-min="25">25 phút</button>
+        <button class="pill" data-min="60">1 giờ</button>
+      </div>
+      <p style="font-size:12px;color:var(--dim);margin:16px 0 0;line-height:1.6">
+        Đồng hồ đếm ngược sẽ hiện ngay dưới vật thể bạn vừa chọn và tiếp tục chạy khi bạn đóng bảng này.
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-wrap" id="sheetLog" aria-hidden="true">
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <span class="grab"></span>
+      <div>
+        <h3>Nhật ký scene</h3>
+        <p class="sub">Các vật thể đã neo trong phiên làm việc</p>
+      </div>
+      <button class="icon-btn close-x" onclick="document.getElementById('sheetLog').classList.remove('open')" aria-label="Đóng">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="logBody"></div>
+  </div>
+</div>
+
+<div class="sheet-wrap" id="sheetSettings" aria-hidden="true">
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <span class="grab"></span>
+      <div>
+        <h3>Cài đặt</h3>
+        <p class="sub">Trạng thái kết nối &amp; dữ liệu</p>
+      </div>
+      <button class="icon-btn close-x" onclick="document.getElementById('sheetSettings').classList.remove('open')" aria-label="Đóng">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <div class="list" style="margin-bottom:16px">
+        <div class="list-row"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l3 7 4-14 3 7h4"/></svg></div><div class="txt"><b>Gemini (nhận diện &amp; hỏi đáp)</b><span id="barGemini">—</span></div></div>
+        <div class="list-row"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></div><div class="txt"><b>Supabase (lưu trữ)</b><span id="barSupabase">—</span></div></div>
+      </div>
+      <div class="pill-row" style="margin-bottom:16px">
+        <button class="pill" id="btnMirror">Gương ảnh trước</button>
+        <button class="pill" id="btnUpload">Tải ảnh lên</button>
+      </div>
+      <button class="btn wide" id="btnClear">Xoá scene trên thiết bị</button>
+      <p style="font-size:11.5px;color:var(--dim);margin:16px 0 0;line-height:1.65">
+        Để bật AI thật: thêm biến môi trường <b>GEMINI_API_KEY</b> trong Vercel → Settings → Environment Variables,
+        rồi redeploy. Lấy key tại aistudio.google.com/app/apikey.
+      </p>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept="image/*" capture="environment" class="sr-only">
+<div class="toasts" id="toasts"></div>
+
+<script src="/app.js"></script>
+<script>
+  // small shims so the empty-state CTA buttons reuse the dock handlers
+  document.addEventListener('DOMContentLoaded', () => {
+    const start = document.getElementById('btnStartCam');
+    const upload = document.getElementById('btnStartUpload');
+    start?.addEventListener('click', () => document.getElementById('btnCamera').click());
+    upload?.addEventListener('click', () => document.getElementById('fileInput').click());
+  });
+</script>
+</body>
+</html>
