@@ -1,10 +1,49 @@
 // Shared Gemini helper for the XR-Objects web demo.
 // Files in /api whose name starts with "_" are not exposed as routes by Vercel.
 
-export const MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 export const HAS_KEY = Boolean(process.env.GEMINI_API_KEY);
+export const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest';
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+// Google retires model IDs constantly (gemini-2.0-flash was shut down on
+// 2026-06-01, replaced by the 3.x Flash line). Hard-coding one ID is what broke
+// this app, so instead we ASK THE API which models the key can reach, rank them,
+// and only use a static list as a last resort.
+//
+// Ordered fallbacks used when discovery fails or the key cannot list models.
+// `gemini-flash-latest` is an alias Google keeps pointed at the current Flash
+// model, which makes it the safest default.
+const STATIC_FALLBACK = [
+  'gemini-flash-latest',
+  'gemini-3.8-flash',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-3-flash',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite'
+];
+
+// Per-instance caches (survive while the serverless instance stays warm).
+let resolvedModel = null; // a model that actually answered
+let discovered = null; // ranked list from the Models API
+
+/** Higher is better. Filters out non-text models and ranks by generation. */
+function rank(id) {
+  if (/embedding|aqa|imagen|veo|tts|image|audio|live|native-audio/.test(id)) return -1;
+  if (!/^(gemini|gemma)/.test(id)) return -1;
+  let s = 0;
+  const m = id.match(/gemini-(\d+)(?:\.(\d+))?/);
+  if (m) s += Number(m[1]) * 100 + Number(m[2] || 0) * 10;
+  if (/flash/.test(id)) s += 60;
+  if (/pro/.test(id)) s += 20;
+  if (/lite/.test(id)) s -= 5;
+  if (/latest/.test(id)) s += 15;
+  if (/preview|exp|experimental/.test(id)) s -= 30;
+  if (/\d{8}$/.test(id)) s -= 40; // dated snapshots
+  return s;
+}
 
 // The label prompt is lifted from XRObjects/Assets/XRObjects/Scripts/ImageQuery.cs
 // so the web demo names objects exactly like the Unity prototype does.
@@ -47,19 +86,7 @@ function parts(text, image, mime = 'image/jpeg') {
   return out;
 }
 
-/**
- * One-shot call to Gemini.
- * @param {object} opts
- * @param {Array} opts.parts  Gemini content parts
- * @param {boolean} [opts.search] enable the google_search grounding tool
- * @param {boolean} [opts.json]   force a JSON response
- * @param {number} [opts.temperature]
- * @returns {Promise<{text: string, model: string, latencyMs: number}>}
- */
-export async function generate({ parts: contentParts, search = false, json = false, temperature = 0.4 }) {
-  if (!HAS_KEY) throw new Error('NO_KEY');
-
-  const url = `${ENDPOINT}/${MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`;
+function buildBody({ contentParts, search, json: wantJson, temperature }) {
   const body = {
     contents: [{ parts: contentParts }],
     generationConfig: { temperature }
@@ -67,43 +94,119 @@ export async function generate({ parts: contentParts, search = false, json = fal
   // Grounding with Google Search is what makes labels/dates/prices current,
   // exactly like the `tools: [{ google_search: {} }]` body in ImageQuery.cs.
   // It cannot be combined with a forced JSON mime type.
-  if (search && !json) body.tools = [{ google_search: {} }];
-  if (json) body.generationConfig.responseMimeType = 'application/json';
+  if (search && !wantJson) body.tools = [{ google_search: {} }];
+  if (wantJson) body.generationConfig.responseMimeType = 'application/json';
+  return body;
+}
 
-  const started = Date.now();
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(45_000)
+/** Models this API key can actually use, newest/most capable first. */
+export async function listModels() {
+  if (!HAS_KEY) return [];
+  const res = await fetch(`${ENDPOINT}?key=${process.env.GEMINI_API_KEY}&pageSize=100`, {
+    signal: AbortSignal.timeout(15_000)
   });
-
-  const latencyMs = Date.now() - started;
-
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(`Gemini ${res.status}: ${detail.slice(0, 400)}`);
-  }
-
+  if (!res.ok) throw new Error(`listModels ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const data = await res.json();
-  const candidate = data?.candidates?.[0];
-  const text = (candidate?.content?.parts || [])
-    .map((p) => p.text || '')
-    .join('')
-    .trim();
+  return (data.models || [])
+    .filter((m) => (m.supportedGenerationMethods || []).includes('generateContent'))
+    .map((m) => ({ id: String(m.name || '').replace(/^models\//, ''), display: m.displayName }));
+}
 
-  if (!text) {
-    const reason = candidate?.finishReason || data?.promptFeedback?.blockReason || 'EMPTY';
-    throw new Error(`Gemini returned no text (${reason})`);
+/** Ranked text-capable model IDs from the API (cached per instance). */
+async function discoveredModels() {
+  if (discovered) return discovered;
+  try {
+    const models = await listModels();
+    discovered = models
+      .map((m) => m.id)
+      .filter((id) => rank(id) > 0)
+      .sort((a, b) => rank(b) - rank(a));
+  } catch {
+    discovered = [];
   }
-  return { text, model: MODEL, latencyMs };
+  return discovered;
 }
 
-export function textPart(text) {
-  return { text };
+/** Ordered list of models to try, best first. */
+export async function modelOrder() {
+  const override = process.env.GEMINI_MODEL ? [process.env.GEMINI_MODEL] : [];
+  return [
+    ...new Set([resolvedModel, ...override, ...(await discoveredModels()), ...STATIC_FALLBACK].filter(Boolean))
+  ];
 }
 
-export { parts };
+/** True when the error means "this model ID does not exist / was retired". */
+function isRetired(err) {
+  const msg = String(err?.message || err);
+  return /NOT_FOUND|is no longer available|not found|not supported|404|unsupported/i.test(msg);
+}
+
+/**
+ * Call Gemini, transparently falling back to another model if the preferred one
+ * has been retired by Google.
+ * @returns {Promise<{text: string, model: string, latencyMs: number, tried: string[]}>}
+ */
+export async function generate(opts) {
+  if (!HAS_KEY) throw new Error('NO_KEY');
+
+  const body = buildBody(opts);
+  const order = await modelOrder();
+  const tried = [];
+  let lastErr = null;
+
+  for (const model of order) {
+    const started = Date.now();
+    try {
+      const res = await fetch(`${ENDPOINT}/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(45_000)
+      });
+      const latencyMs = Date.now() - started;
+
+      if (!res.ok) {
+        const detail = (await res.text().catch(() => '')).slice(0, 400);
+        const err = new Error(`Gemini ${res.status} (${model}): ${detail}`);
+        tried.push(model);
+        lastErr = err;
+        // A retired model should not abort the whole request — try the next one.
+        if (isRetired(err) || res.status === 400 || res.status === 404) continue;
+        throw err;
+      }
+
+      const data = await res.json();
+      const candidate = data?.candidates?.[0];
+      const text = (candidate?.content?.parts || [])
+        .map((p) => p.text || '')
+        .join('')
+        .trim();
+
+      if (!text) {
+        const reason = candidate?.finishReason || data?.promptFeedback?.blockReason || 'EMPTY';
+        throw new Error(`Gemini returned no text (${reason}) from ${model}`);
+      }
+
+      resolvedModel = model;
+      return { text, model, latencyMs, tried };
+    } catch (err) {
+      tried.push(model);
+      lastErr = err;
+      if (!isRetired(err)) throw err;
+    }
+  }
+
+  throw lastErr || new Error('No Gemini model available');
+}
+
+/** Model that has already proven to work in this instance, or null. */
+export function currentModel() {
+  return resolvedModel;
+}
+
+export async function candidates() {
+  return modelOrder();
+}
 
 export function json(res, status, payload) {
   res.status(status).setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -129,6 +232,15 @@ export function fail(res, err) {
       message: 'GEMINI_API_KEY chưa được cấu hình trên Vercel. App đang chạy ở chế độ demo.'
     });
   }
+  if (isRetired(err)) {
+    return json(res, 502, {
+      error: 'MODEL_RETIRED',
+      message:
+        'Không model Gemini nào trong danh sách còn hoạt động với API key này. ' +
+        'Kiểm tra biến GEMINI_MODEL (ví dụ gemini-flash-latest) hoặc key đã bị thu hồi.',
+      detail: message
+    });
+  }
   console.error('[xr-objects]', message);
   return json(res, 502, { error: 'UPSTREAM', message });
 }
@@ -137,3 +249,5 @@ export function fail(res, err) {
 export function looksVietnamese(text = '') {
   return /[ăâđêôơưàáảãạằắẳẵặèéẻẽẹìíỉĩịòóỏõọồốổỗộùúủũụỳýỷỹỵ]/i.test(text);
 }
+
+export { parts };

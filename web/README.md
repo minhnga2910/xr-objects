@@ -43,7 +43,7 @@ web/
 | `GEMINI_API_KEY` | Bắt buộc để có AI thật. Không có → tự chuyển chế độ demo. |
 | `SUPABASE_URL` | `https://<ref>.supabase.co` |
 | `SUPABASE_ANON_KEY` | Publishable/anon key (an toàn để lộ, đã có RLS) |
-| `GEMINI_MODEL` | Tuỳ chọn, mặc định `gemini-2.0-flash` |
+| `GEMINI_MODEL` | Tuỳ chọn, mặc định `gemini-flash-latest`. Backend tự fallback nếu model bị khai tử. |
 
 ## Deploy
 
@@ -52,7 +52,7 @@ web/
    Output Directory = `public` (đã khai báo trong `vercel.json`).
 3. Thêm các biến môi trường ở trên → **Deploy**.
 4. Supabase → **SQL Editor** → chạy `supabase/schema.sql` → lấy URL + anon key.
-5. Mở `/api/health` để kiểm tra kết nối.
+5. Mở `/api/health` để kiểm tra kết nối, và `/api/models?test=1` để xác nhận model Gemini đang dùng.
 
 ## Ghi chú bảo mật
 

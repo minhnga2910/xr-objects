@@ -1,3 +1,5 @@
+import { DEFAULT_MODEL, currentModel } from './_gemini.js';
+
 // GET /api/health — self-check used after deployment (and by the Settings sheet).
 // Verifies that the Gemini key and the Supabase project are reachable from the
 // serverless runtime, without ever returning a secret.
@@ -6,7 +8,7 @@ export default async function handler(req, res) {
     ok: true,
     gemini: {
       configured: Boolean(process.env.GEMINI_API_KEY),
-      model: process.env.GEMINI_MODEL || 'gemini-2.0-flash'
+      model: currentModel() || DEFAULT_MODEL
     },
     supabase: { configured: false, reachable: false, tables: null, error: null },
     time: new Date().toISOString()
