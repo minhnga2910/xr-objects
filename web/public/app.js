@@ -320,13 +320,7 @@ async function detectNow({ silent = false } = {}) {
   $('#btnDetect').classList.add('active');
 
   try {
-    const res = await fetch('/api/detect', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Nhận diện thất bại');
+    const data = await apiPost('/api/detect', { image });
 
     const found = data.objects || [];
     if (!found.length) {
@@ -378,22 +372,21 @@ async function enrichLabel(obj) {
   const crop = cropFrame(obj);
   if (!crop) return;
   try {
-    const res = await fetch('/api/label', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: crop })
-    });
-    if (!res.ok) return;
-    const data = await res.json();
+    const data = await apiPost('/api/label', { image: crop });
     if (!data.label) return;
     obj.metadata = { ...(obj.metadata || {}), name: data.label, model: data.model };
     obj.thumb = crop;
     render();
     SB.updateObjectMetadata(obj.dbId, { name: data.label, class: obj.label, method: obj.method });
-  } catch {
+  } catch (err) {
     // Label enrichment is best-effort: if Gemini is unreachable, mark the row as
-    // demo-sourced so it still satisfies objects_source_check.
+    // demo-sourced so it still satisfies objects_source_check, and remember why
+    // so the UI can explain it once instead of failing silently.
     if (obj.source === 'gemini') obj.source = 'demo';
+    if (!state.geminiWarned) {
+      state.geminiWarned = true;
+      toast(`Không đặt tên được vật thể: ${err.message}`, 'err');
+    }
   }
 }
 
@@ -604,14 +597,32 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+const ERROR_HINTS = {
+  NO_KEY: 'Chưa cấu hình GEMINI_API_KEY trên Vercel — app đang chạy chế độ demo.',
+  MODEL_RETIRED:
+    'Model Gemini đã bị Google khai tử. Vào Vercel đổi GEMINI_MODEL (ví dụ gemini-flash-latest) hoặc kiểm tra /api/models.',
+  UPSTREAM: 'Gemini trả lỗi. Xem chi tiết ở /api/models?test=1.'
+};
+
 async function apiPost(path, body) {
-  const res = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
+  let res;
+  try {
+    res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  } catch {
+    throw new Error('Mất kết nối tới server. Kiểm tra mạng rồi thử lại.');
+  }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || `Lỗi ${res.status}`);
+  if (!res.ok) {
+    const hint = ERROR_HINTS[data.error] || data.message || `Lỗi ${res.status}`;
+    const err = new Error(hint);
+    err.code = data.error;
+    err.status = res.status;
+    throw err;
+  }
   return data;
 }
 

@@ -8,6 +8,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "vercel dev"
+    "dev": "vercel dev",
+    "test": "node test/gemini.test.mjs"
   }
 }
